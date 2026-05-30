@@ -32,6 +32,7 @@
             margin-bottom: 40px;
         }
 
+        /* Upload zone - default state */
         .upload-zone {
             width: 100%;
             max-width: 600px;
@@ -53,6 +54,14 @@
             background: #1e293b;
         }
 
+        .upload-zone.has-file {
+            border-style: solid;
+            border-color: #22c55e;
+            background: #0f2a1e;
+            padding: 24px 30px;
+            cursor: default;
+        }
+
         .upload-icon {
             font-size: 3rem;
             margin-bottom: 16px;
@@ -69,6 +78,90 @@
         }
 
         input[type="file"] {
+            display: none;
+        }
+
+        /* File info bar (shown after upload) */
+        .file-info {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .file-info.active {
+            display: flex;
+        }
+
+        .file-details {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .file-icon {
+            font-size: 1.8rem;
+        }
+
+        .file-name {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #e2e8f0;
+        }
+
+        .file-size {
+            font-size: 0.8rem;
+            color: #6ee7b7;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-change {
+            background: #334155;
+            color: #e2e8f0;
+        }
+
+        .btn-change:hover {
+            background: #475569;
+        }
+
+        .btn-download {
+            background: #3b82f6;
+            color: #ffffff;
+            display: none;
+        }
+
+        .btn-download.active {
+            display: inline-block;
+        }
+
+        .btn-download:hover {
+            background: #2563eb;
+        }
+
+        /* Default upload content */
+        .upload-default {
+            display: block;
+        }
+
+        .upload-default.hidden {
             display: none;
         }
 
@@ -290,9 +383,25 @@
     <p class="subtitle">Upload your spreadsheet. We'll explain every formula.</p>
 
     <div class="upload-zone" id="dropZone">
-        <div class="upload-icon">📁</div>
-        <p class="upload-text">Drop your Excel file here, or click to upload</p>
-        <p class="upload-hint">.xlsx files only · Max 5 MB</p>
+        <div class="upload-default" id="uploadDefault">
+            <div class="upload-icon">📁</div>
+            <p class="upload-text">Drop your Excel file here, or click to upload</p>
+            <p class="upload-hint">.xlsx files only · Max 5 MB</p>
+        </div>
+
+        <div class="file-info" id="fileInfo">
+            <div class="file-details">
+                <span class="file-icon">📄</span>
+                <div>
+                    <div class="file-name" id="fileName">filename.xlsx</div>
+                    <div class="file-size" id="fileSize">12.3 KB</div>
+                </div>
+            </div>
+            <div class="file-actions">
+                <button class="btn btn-download" id="downloadBtn" title="Download results">⬇ Results</button>
+                <button class="btn btn-change" id="changeBtn" title="Upload a different file">🔄 Change</button>
+            </div>
+        </div>
     </div>
 
     <input type="file" id="fileInput" accept=".xlsx">
@@ -323,12 +432,20 @@
 
     <script>
         const dropZone = document.getElementById('dropZone');
+        const uploadDefault = document.getElementById('uploadDefault');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
         const fileInput = document.getElementById('fileInput');
+        const changeBtn = document.getElementById('changeBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
         const loading = document.getElementById('loading');
         const loadingText = document.getElementById('loadingText');
         const errorBar = document.getElementById('errorBar');
         const summary = document.getElementById('summary');
         const results = document.getElementById('results');
+
+        let currentResults = null;
 
         const loadingMessages = [
             'Analyzing your spreadsheet...',
@@ -340,7 +457,24 @@
 
         let loadingInterval;
 
-        dropZone.addEventListener('click', () => fileInput.click());
+        // Click upload zone only when no file is loaded
+        dropZone.addEventListener('click', (e) => {
+            if (!dropZone.classList.contains('has-file')) {
+                fileInput.click();
+            }
+        });
+
+        // Change button opens file picker
+        changeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.click();
+        });
+
+        // Download button
+        downloadBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (currentResults) downloadResults();
+        });
 
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -363,11 +497,34 @@
             if (file) uploadFile(file);
         });
 
+        function showFileInfo(file) {
+            fileName.textContent = file.name;
+            const sizeKB = (file.size / 1024).toFixed(1);
+            fileSize.textContent = sizeKB > 1024 ? (file.size / (1024 * 1024)).toFixed(1) + ' MB' : sizeKB + ' KB';
+
+            uploadDefault.classList.add('hidden');
+            fileInfo.classList.add('active');
+            dropZone.classList.add('has-file');
+        }
+
+        function resetUpload() {
+            uploadDefault.classList.remove('hidden');
+            fileInfo.classList.remove('active');
+            dropZone.classList.remove('has-file');
+            downloadBtn.classList.remove('active');
+            summary.classList.remove('active');
+            errorBar.classList.remove('active');
+            results.innerHTML = '';
+            currentResults = null;
+            fileInput.value = '';
+        }
+
         function startLoading() {
             loading.classList.add('active');
             summary.classList.remove('active');
             errorBar.classList.remove('active');
             results.innerHTML = '';
+            downloadBtn.classList.remove('active');
 
             let i = 0;
             loadingInterval = setInterval(() => {
@@ -386,19 +543,49 @@
             errorBar.classList.add('active');
         }
 
+        function downloadResults() {
+            if (!currentResults) return;
+
+            let text = `Excel Formula Explainer - Analysis Report\n`;
+            text += `==========================================\n\n`;
+            text += `Total Formulas: ${currentResults.total_formulas}\n`;
+            text += `Complex: ${currentResults.complex_count}\n`;
+            text += `Broken References: ${currentResults.broken_count}\n\n`;
+
+            currentResults.formulas.forEach(f => {
+                text += `-------------------------------------------\n`;
+                text += `Cell: ${f.cell}\n`;
+                text += `Type: ${f.is_complex ? 'Complex' : 'Simple'}\n`;
+                text += `Formula: ${f.formula}\n`;
+                if (f.explanation) text += `Explanation: ${f.explanation}\n`;
+                if (f.is_complex && f.simplified) text += `Simplified: ${f.simplified}\n`;
+                if (f.broken_refs && f.broken_refs.length > 0) text += `Broken Refs: ${f.broken_refs.join(', ')}\n`;
+                text += `\n`;
+            });
+
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'formula-analysis-report.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
         function renderResults(data) {
-            // Summary
+            currentResults = data;
+
             document.getElementById('totalCount').textContent = data.total_formulas;
             document.getElementById('complexCount').textContent = data.complex_count;
             document.getElementById('brokenCount').textContent = data.broken_count;
             summary.classList.add('active');
+            downloadBtn.classList.add('active');
 
             if (data.formulas.length === 0) {
                 results.innerHTML = '<p class="no-formulas">No formulas found in this file.</p>';
                 return;
             }
 
-            // Sort: complex first, then broken, then simple
             const sorted = data.formulas.sort((a, b) => {
                 if (a.is_complex !== b.is_complex) return b.is_complex - a.is_complex;
                 if (a.broken_refs.length !== b.broken_refs.length) return b.broken_refs.length - a.broken_refs.length;
@@ -454,6 +641,7 @@
         }
 
         async function uploadFile(file) {
+            showFileInfo(file);
             startLoading();
 
             const formData = new FormData();
