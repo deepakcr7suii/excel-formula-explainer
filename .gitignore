@@ -1,0 +1,6 @@
+.env
+uploads/
+__pycache__/
+*.pyc
+test_analyzer.py
+create_test.py
