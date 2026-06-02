@@ -11,6 +11,9 @@ TRICKY_FUNCTIONS = [
 # Broken reference markers that Excel leaves in cells
 BROKEN_MARKERS = ['#REF!', '#NAME?', '#VALUE!', '#DIV/0!', '#NULL!', '#N/A', '#NUM!']
 
+# Hard cap — protects Gemini quota and Render timeout
+MAX_FORMULAS = 100
+
 def is_complex(formula):
     """Rule C: flag if over 50 chars OR contains a tricky function."""
     if len(formula) > 50:
@@ -53,6 +56,14 @@ def analyze_file(filepath):
                     continue
 
                 results['total_formulas'] += 1
+
+                # Hard cap — fail fast before we waste Gemini quota
+                if results['total_formulas'] > MAX_FORMULAS:
+                    wb.close()
+                    raise ValueError(
+                        f'File has too many formulas. Max {MAX_FORMULAS} per file. '
+                        f'Try splitting your file into smaller chunks.'
+                    )
 
                 formula_info = {
                     'cell': f"{sheet_name}!{cell.coordinate}",

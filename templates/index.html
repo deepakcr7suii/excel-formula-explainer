@@ -446,6 +446,7 @@
         const results = document.getElementById('results');
 
         let currentResults = null;
+        let currentAbortController = null;  // Tracks the in-flight upload so Change can cancel it
 
         const loadingMessages = [
             'Analyzing your spreadsheet...',
@@ -464,9 +465,27 @@
             }
         });
 
-        // Change button opens file picker
+        // Change button: kill in-flight scan, clear UI state, open file picker
         changeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+
+            // Cancel any ongoing scan so its response can't render over the new one
+            if (currentAbortController) {
+                currentAbortController.abort();
+                currentAbortController = null;
+            }
+
+            // Clear all UI state from the previous file
+            stopLoading();
+            errorBar.classList.remove('active');
+            summary.classList.remove('active');
+            results.innerHTML = '';
+            downloadBtn.classList.remove('active');
+            currentResults = null;
+
+            // CRITICAL: reset value so picking the same file fires the change event
+            fileInput.value = '';
+
             fileInput.click();
         });
 
@@ -644,17 +663,23 @@
             showFileInfo(file);
             startLoading();
 
+            // Create a fresh abort controller for this request
+            currentAbortController = new AbortController();
+            const signal = currentAbortController.signal;
+
             const formData = new FormData();
             formData.append('file', file);
 
             try {
                 const response = await fetch('/upload', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    signal: signal
                 });
 
                 const data = await response.json();
                 stopLoading();
+                currentAbortController = null;
 
                 if (response.ok) {
                     renderResults(data);
@@ -662,7 +687,12 @@
                     showError(data.error);
                 }
             } catch (err) {
+                // If user clicked Change mid-scan, swallow the abort silently
+                if (err.name === 'AbortError') {
+                    return;
+                }
                 stopLoading();
+                currentAbortController = null;
                 showError('Something went wrong. Try again.');
             }
         }

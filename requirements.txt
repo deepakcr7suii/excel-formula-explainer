@@ -3,3 +3,4 @@ openpyxl
 google-generativeai
 python-dotenv
 gunicorn
+Flask-Limiter
