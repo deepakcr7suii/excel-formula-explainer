@@ -36,7 +36,34 @@ SIMPLIFIED: [A simpler version of this formula if possible, or "No simplificatio
         }
 
     except Exception as e:
+        # Get the raw error text once, lowercase, for matching
+        err_text = str(e).lower()
+
+        # Quota / rate-limit errors (429)
+        if '429' in err_text or 'quota' in err_text or 'rate' in err_text:
+            return {
+                'explanation': 'AI explanation temporarily unavailable — daily usage limit reached. Please try again later.',
+                'simplified': 'Unavailable right now.'
+            }
+
+        # Auth errors (401 / 403) — bad or revoked API key
+        if '401' in err_text or '403' in err_text or 'api key' in err_text or 'permission' in err_text:
+            return {
+                'explanation': 'AI explanation unavailable — service configuration issue.',
+                'simplified': 'Unavailable right now.'
+            }
+
+        # Network / timeout errors
+        if 'timeout' in err_text or 'connection' in err_text or 'network' in err_text:
+            return {
+                'explanation': 'AI explanation unavailable — connection issue. Please try again.',
+                'simplified': 'Unavailable right now.'
+            }
+
+        # Everything else — generic fallback, never leak raw stack traces to users
+        # Log to server console for debugging while showing clean message to user
+        print(f'[Gemini error] cell={cell_ref} formula={formula[:50]} error={str(e)}')
         return {
-            'explanation': f'Error: {str(e)}',
-            'simplified': 'N/A'
+            'explanation': 'AI explanation could not be generated for this formula.',
+            'simplified': 'Unavailable right now.'
         }
